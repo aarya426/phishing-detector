@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhishGuard AI — Machine Learning Phishing Detection</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            cyber: {
+              900: '#070b14',
+              800: '#0e1626',
+              700: '#16223b',
+              600: '#1f3052',
+              cyan: '#06b6d4',
+              sky: '#38bdf8',
+              emerald: '#10b981',
+              rose: '#f43f5e',
+              amber: '#f59e0b'
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="cyber-grid-bg antialiased text-slate-200">
+  
+  <!-- Navigation / Header -->
+  <header class="border-b border-sky-500/20 bg-cyber-900/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-cyan-500 to-sky-400 flex items-center justify-center shadow-lg shadow-cyan-500/30">
+          <i data-lucide="shield-alert" class="w-6 h-6 text-slate-950 stroke-[2.5]"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xl font-bold tracking-wider text-white">PHISH<span class="text-cyan-400">GUARD</span></span>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-mono">ML v1.0</span>
+          </div>
+          <p class="text-xs text-slate-400">Real-time Machine Learning Threat Intelligence</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center space-x-1 sm:space-x-2 bg-cyber-800/90 p-1.5 rounded-xl border border-sky-500/15">
+        <button onclick="switchTab('url-tab')" id="nav-url-tab" class="nav-btn px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center space-x-2 bg-gradient-to-r from-cyan-500 to-sky-500 text-slate-950 shadow-md">
+          <i data-lucide="globe" class="w-4 h-4"></i>
+          <span>URL Scanner</span>
+        </button>
+        <button onclick="switchTab('text-tab')" id="nav-text-tab" class="nav-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white hover:bg-cyber-700/60 transition-all flex items-center space-x-2">
+          <i data-lucide="mail" class="w-4 h-4"></i>
+          <span>Message Scanner</span>
+        </button>
+        <button onclick="switchTab('insights-tab')" id="nav-insights-tab" class="nav-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white hover:bg-cyber-700/60 transition-all flex items-center space-x-2">
+          <i data-lucide="bar-chart-2" class="w-4 h-4"></i>
+          <span>Model Insights</span>
+        </button>
+        <button onclick="switchTab('guide-tab')" id="nav-guide-tab" class="nav-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white hover:bg-cyber-700/60 transition-all flex items-center space-x-2">
+          <i data-lucide="book-open" class="w-4 h-4"></i>
+          <span>Defense Guide</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+    <!-- ==================== TAB 1: URL SCANNER ==================== -->
+    <div id="url-tab" class="tab-content active space-y-8">
+      
+      <!-- Hero Scanner Input -->
+      <section class="glass-card p-6 sm:p-8 relative overflow-hidden">
+        <div class="absolute -right-20 -top-20 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="max-w-3xl mx-auto text-center space-y-3 mb-6">
+          <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+            Analyze Any URL For <span class="bg-gradient-to-r from-cyan-400 to-sky-400 bg-clip-text text-transparent">Phishing Threats</span>
+          </h1>
+          <p class="text-sm sm:text-base text-slate-400">
+            Powered by a Random Forest Classifier evaluating 20+ lexical, structural, and semantic threat markers.
+          </p>
+        </div>
+
+        <!-- Input Bar -->
+        <form id="url-scan-form" class="max-w-3xl mx-auto relative flex flex-col sm:flex-row gap-3">
+          <div class="relative flex-1">
+            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+              <i data-lucide="search" class="w-5 h-5"></i>
+            </div>
+            <input 
+              type="text" 
+              id="url-input" 
+              placeholder="e.g. https://paypal-account-verification-security.xyz/login.php" 
+              required
+              class="w-full pl-12 pr-4 py-4 rounded-xl bg-cyber-900 border border-sky-500/30 text-white font-mono text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all shadow-inner"
+            />
+          </div>
+          <button 
+            type="submit" 
+            id="scan-btn"
+            class="px-8 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-slate-950 font-bold text-sm tracking-wide shadow-lg shadow-cyan-500/25 transition-all flex items-center justify-center space-x-2 shrink-0 active:scale-[0.98]"
+          >
+            <i data-lucide="radar" class="w-5 h-5"></i>
+            <span>Scan URL</span>
+          </button>
+        </form>
+
+        <!-- Quick Test Presets -->
+        <div class="max-w-3xl mx-auto mt-5">
+          <div class="flex items-center space-x-2 text-xs text-slate-400 mb-2">
+            <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-400"></i>
+            <span>Try sample presets:</span>
+          </div>
+          <div class="flex flex-wrap gap-2" id="preset-container">
+            <button onclick="setSampleUrl('https://www.google.com')" class="px-3 py-1.5 rounded-lg bg-cyber-800/80 hover:bg-cyber-700 text-xs text-emerald-400 border border-emerald-500/30 flex items-center space-x-1 transition-all">
+              <i data-lucide="check-circle-2" class="w-3 h-3"></i>
+              <span>Google (Legit)</span>
+            </button>
+            <button onclick="setSampleUrl('https://github.com/torvalds/linux')" class="px-3 py-1.5 rounded-lg bg-cyber-800/80 hover:bg-cyber-700 text-xs text-emerald-400 border border-emerald-500/30 flex items-center space-x-1 transition-all">
+              <i data-lucide="check-circle-2" class="w-3 h-3"></i>
+              <span>GitHub (Legit)</span>
+            </button>
+            <button onclick="setSampleUrl('http://paypal-account-verification-security.xyz/login.php')" class="px-3 py-1.5 rounded-lg bg-cyber-800/80 hover:bg-cyber-700 text-xs text-rose-400 border border-rose-500/30 flex items-center space-x-1 transition-all">
+              <i data-lucide="alert-triangle" class="w-3 h-3"></i>
+              <span>Fake PayPal (.xyz)</span>
+            </button>
+            <button onclick="setSampleUrl('http://192.168.1.100/chase-online/auth/login.html')" class="px-3 py-1.5 rounded-lg bg-cyber-800/80 hover:bg-cyber-700 text-xs text-rose-400 border border-rose-500/30 flex items-center space-x-1 transition-all">
+              <i data-lucide="cpu" class="w-3 h-3"></i>
+              <span>IP Hostname Bank Scam</span>
+            </button>
+            <button onclick="setSampleUrl('http://wellsfargo.com.security-alert-user-auth.ga/login.asp')" class="px-3 py-1.5 rounded-lg bg-cyber-800/80 hover:bg-cyber-700 text-xs text-rose-400 border border-rose-500/30 flex items-center space-x-1 transition-all">
+              <i data-lucide="alert-octagon" class="w-3 h-3"></i>
+              <span>Subdomain Spoof (.ga)</span>
+            </button>
+            <button onclick="setSampleUrl('http://tinyurl.com/bank-urgent-fix')" class="px-3 py-1.5 rounded-lg bg-cyber-800/80 hover:bg-cyber-700 text-xs text-amber-400 border border-amber-500/30 flex items-center space-x-1 transition-all">
+              <i data-lucide="link" class="w-3 h-3"></i>
+              <span>URL Shortener</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Loading State -->
+      <div id="url-loading" class="hidden glass-card p-12 text-center space-y-4">
+        <div class="relative w-16 h-16 mx-auto">
+          <div class="w-16 h-16 rounded-full border-4 border-cyan-500/20 border-t-cyan-400 animate-spin"></div>
+          <div class="absolute inset-0 flex items-center justify-center">
+            <i data-lucide="shield" class="w-6 h-6 text-cyan-400"></i>
+          </div>
+        </div>
+        <p class="text-slate-300 font-medium text-sm">Extracting 20+ feature signals and evaluating Machine Learning model...</p>
+      </div>
+
+      <!-- Results Display Section -->
+      <section id="url-results" class="hidden space-y-6">
+        
+        <!-- Primary Verdict & Risk Meter Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- Gauge Card -->
+          <div class="glass-card p-6 flex flex-col items-center justify-center text-center relative overflow-hidden" id="verdict-gauge-card">
+            <h3 class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-2">Phishing Risk Score</h3>
+            
+            <div class="relative w-48 h-48 flex items-center justify-center my-2">
+              <!-- Radial SVG Gauge -->
+              <svg class="w-48 h-48 transform -rotate-90" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="50" class="text-slate-800/80 stroke-current" stroke-width="10" fill="transparent"></circle>
+                <circle id="score-gauge-circle" cx="60" cy="60" r="50" class="stroke-current transition-all duration-1000 ease-out" stroke-width="10" stroke-linecap="round" fill="transparent" stroke-dasharray="314" stroke-dashoffset="314"></circle>
+              </svg>
+              <div class="absolute flex flex-col items-center justify-center">
+                <span id="score-value" class="text-4xl font-extrabold tracking-tight font-mono text-white">0%</span>
+                <span id="score-tier" class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Risk Meter</span>
+              </div>
+            </div>
+
+            <div id="verdict-badge" class="mt-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border">
+              Evaluating
+            </div>
+          </div>
+
+          <!-- Diagnostic Details & Summary -->
+          <div class="glass-card p-6 lg:col-span-2 flex flex-col justify-between space-y-4">
+            <div>
+              <div class="flex items-center justify-between border-b border-slate-700/60 pb-3 mb-4">
+                <div class="flex items-center space-x-2">
+                  <i data-lucide="cpu" class="w-5 h-5 text-cyan-400"></i>
+                  <span class="text-sm font-semibold text-white">AI Diagnostic Assessment</span>
+                </div>
+                <span id="scanned-url-display" class="text-xs font-mono text-slate-400 max-w-xs truncate"></span>
+              </div>
+              <p id="verdict-summary" class="text-slate-300 text-sm leading-relaxed mb-4"></p>
+
+              <!-- Diagnostic Vector List -->
+              <div class="space-y-2">
+                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Identified Risk Factors:</h4>
+                <div id="diagnostics-list" class="space-y-2">
+                  <!-- Populated by JS -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Recommended Actions -->
+            <div class="pt-4 border-t border-slate-700/60">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Recommended Protective Action:</h4>
+              <ul id="recommendations-list" class="space-y-1.5 text-xs text-slate-300">
+                <!-- Populated by JS -->
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Deep Feature Inspector Table -->
+        <div class="glass-card p-6 space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="layers" class="w-5 h-5 text-cyan-400"></i>
+              <h3 class="text-sm font-bold uppercase tracking-wider text-white">Model Feature Breakdown (20+ Engineered Signals)</h3>
+            </div>
+            <span class="text-xs text-slate-400">Signals extracted directly from URL structure</span>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-cyber-900/60 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                <tr>
+                  <th class="py-3 px-4">Feature Name</th>
+                  <th class="py-3 px-4">Extracted Value</th>
+                  <th class="py-3 px-4">Description</th>
+                  <th class="py-3 px-4">Threat Risk Status</th>
+                </tr>
+              </thead>
+              <tbody id="features-table-body" class="divide-y divide-slate-800/60 font-mono">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Recent Scans History Section -->
+      <section class="glass-card p-6 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="history" class="w-5 h-5 text-cyan-400"></i>
+            <h3 class="text-sm font-bold uppercase tracking-wider text-white">Recent Session Scans</h3>
+          </div>
+          <button onclick="clearHistory()" class="text-xs text-slate-400 hover:text-rose-400 transition-colors flex items-center space-x-1">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            <span>Clear History</span>
+          </button>
+        </div>
+
+        <div id="history-container" class="space-y-2 text-xs">
+          <div class="text-center py-6 text-slate-500 font-mono text-xs">No scans recorded yet. Enter a URL above to inspect threats.</div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ==================== TAB 2: MESSAGE SCANNER ==================== -->
+    <div id="text-tab" class="tab-content space-y-8">
+      
+      <section class="glass-card p-6 sm:p-8 relative overflow-hidden">
+        <div class="max-w-3xl mx-auto text-center space-y-3 mb-6">
+          <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+            Email & SMS <span class="bg-gradient-to-r from-cyan-400 to-sky-400 bg-clip-text text-transparent">Social Engineering Scanner</span>
+          </h1>
+          <p class="text-sm sm:text-base text-slate-400">
+            Paste suspicious emails, SMS alerts, or workplace messages to evaluate psychological urgency, financial manipulation, and credential harvesting cues.
+          </p>
+        </div>
+
+        <!-- Text Form -->
+        <form id="text-scan-form" class="max-w-3xl mx-auto space-y-4">
+          <div class="relative">
+            <textarea 
+              id="text-input" 
+              rows="6" 
+              placeholder="Paste email or message text here (e.g. URGENT: Your bank account has been suspended due to suspicious activity. Click here to verify...)"
+              required
+              class="w-full p-4 rounded-xl bg-cyber-900 border border-sky-500/30 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all font-mono shadow-inner"
+            ></textarea>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center space-x-2 text-xs">
+              <span class="text-slate-400">Sample texts:</span>
+              <button type="button" onclick="setSampleText('bank')" class="px-2.5 py-1 rounded bg-cyber-800 text-rose-400 border border-rose-500/30 hover:bg-cyber-700 transition-all">Bank Suspension Alert</button>
+              <button type="button" onclick="setSampleText('lottery')" class="px-2.5 py-1 rounded bg-cyber-800 text-rose-400 border border-rose-500/30 hover:bg-cyber-700 transition-all">Lottery Prize Scam</button>
+              <button type="button" onclick="setSampleText('meeting')" class="px-2.5 py-1 rounded bg-cyber-800 text-emerald-400 border border-emerald-500/30 hover:bg-cyber-700 transition-all">Team Meeting (Legit)</button>
+            </div>
+            
+            <button 
+              type="submit" 
+              class="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-slate-950 font-bold text-sm shadow-lg shadow-cyan-500/25 transition-all flex items-center space-x-2"
+            >
+              <i data-lucide="scan" class="w-4 h-4"></i>
+              <span>Analyze Message</span>
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Text Scan Results -->
+      <section id="text-results" class="hidden glass-card p-6 sm:p-8 space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-700 pb-4 gap-4">
+          <div>
+            <span class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Message Threat Verdict</span>
+            <h3 id="text-verdict-title" class="text-2xl font-bold text-white mt-1"></h3>
+          </div>
+          <div id="text-risk-pill" class="px-4 py-1.5 rounded-full text-sm font-bold font-mono border"></div>
+        </div>
+
+        <p id="text-summary" class="text-sm text-slate-300"></p>
+
+        <!-- Threat Indicators Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="p-4 rounded-xl bg-cyber-900/80 border border-slate-800 space-y-1">
+            <span class="text-xs text-slate-400">Urgency Trigger Matches</span>
+            <div id="urgency-count" class="text-xl font-bold font-mono text-cyan-400">0</div>
+            <div id="urgency-tokens" class="text-xs text-slate-400 truncate">None</div>
+          </div>
+          <div class="p-4 rounded-xl bg-cyber-900/80 border border-slate-800 space-y-1">
+            <span class="text-xs text-slate-400">Credential Solicitation Matches</span>
+            <div id="credential-count" class="text-xl font-bold font-mono text-rose-400">0</div>
+            <div id="credential-tokens" class="text-xs text-slate-400 truncate">None</div>
+          </div>
+          <div class="p-4 rounded-xl bg-cyber-900/80 border border-slate-800 space-y-1">
+            <span class="text-xs text-slate-400">Financial Pressure Matches</span>
+            <div id="financial-count" class="text-xl font-bold font-mono text-amber-400">0</div>
+            <div id="financial-tokens" class="text-xs text-slate-400 truncate">None</div>
+          </div>
+        </div>
+
+        <!-- Diagnostics & Actions -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Detailed Findings:</h4>
+          <div id="text-diagnostics" class="space-y-2"></div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ==================== TAB 3: MODEL INSIGHTS ==================== -->
+    <div id="insights-tab" class="tab-content space-y-8">
+      
+      <!-- Metrics Overview -->
+      <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="glass-card p-5 space-y-1 border-l-4 border-cyan-400">
+          <span class="text-xs uppercase font-semibold text-slate-400">Model Accuracy</span>
+          <div id="stat-accuracy" class="text-2xl sm:text-3xl font-bold font-mono text-white">Loading...</div>
+          <p class="text-[11px] text-slate-400">Stratified Test Set</p>
+        </div>
+        <div class="glass-card p-5 space-y-1 border-l-4 border-emerald-400">
+          <span class="text-xs uppercase font-semibold text-slate-400">Precision</span>
+          <div id="stat-precision" class="text-2xl sm:text-3xl font-bold font-mono text-white">Loading...</div>
+          <p class="text-[11px] text-slate-400">Low False Positive Rate</p>
+        </div>
+        <div class="glass-card p-5 space-y-1 border-l-4 border-sky-400">
+          <span class="text-xs uppercase font-semibold text-slate-400">Recall</span>
+          <div id="stat-recall" class="text-2xl sm:text-3xl font-bold font-mono text-white">Loading...</div>
+          <p class="text-[11px] text-slate-400">High Threat Catch Rate</p>
+        </div>
+        <div class="glass-card p-5 space-y-1 border-l-4 border-amber-400">
+          <span class="text-xs uppercase font-semibold text-slate-400">F1 Score</span>
+          <div id="stat-f1" class="text-2xl sm:text-3xl font-bold font-mono text-white">Loading...</div>
+          <p class="text-[11px] text-slate-400">Harmonic Mean</p>
+        </div>
+      </section>
+
+      <!-- Feature Importance Chart -->
+      <section class="glass-card p-6 sm:p-8 space-y-6">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div>
+            <h3 class="text-lg font-bold text-white">Top 10 Feature Importances (Random Forest)</h3>
+            <p class="text-xs text-slate-400">Relative weight assigned by the ensemble model trees when evaluating phishing probability</p>
+          </div>
+          <span class="text-xs font-mono px-3 py-1 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">100 Trees</span>
+        </div>
+
+        <div class="h-80 w-full relative">
+          <canvas id="featureImportanceChart"></canvas>
+        </div>
+      </section>
+
+      <!-- Architecture details -->
+      <section class="glass-card p-6 space-y-4">
+        <h3 class="text-base font-bold text-white flex items-center space-x-2">
+          <i data-lucide="cpu" class="w-5 h-5 text-cyan-400"></i>
+          <span>Pipeline & Model Architecture</span>
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs text-slate-300 leading-relaxed">
+          <div class="p-4 rounded-xl bg-cyber-900/60 border border-slate-800 space-y-2">
+            <h4 class="font-bold text-cyan-400 text-sm">1. URL Feature Engineering & Random Forest</h4>
+            <p>
+              The system extracts 23 specific structural and lexical dimensions per URL, including domain Shannon entropy, digit ratios, keyword frequencies, and TLD abuse metrics. A Random Forest Classifier with 100 decision trees then aggregates sub-decisions to resist individual feature obfuscation.
+            </p>
+          </div>
+          <div class="p-4 rounded-xl bg-cyber-900/60 border border-slate-800 space-y-2">
+            <h4 class="font-bold text-sky-400 text-sm">2. NLP Message Preprocessing & Naive Bayes</h4>
+            <p>
+              Email and SMS text messages are cleaned with regex token normalization (replacing URLs, phone numbers, and emails with structural tokens). A TF-IDF N-Gram Vectorizer (unigrams and bigrams) paired with a Multinomial Naive Bayes classifier quantifies urgency and credential-harvesting intent.
+            </p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ==================== TAB 4: DEFENSE GUIDE ==================== -->
+    <div id="guide-tab" class="tab-content space-y-8">
+      
+      <section class="glass-card p-6 sm:p-8 space-y-6">
+        <div>
+          <h2 class="text-2xl font-bold text-white mb-2">The Anatomy of Modern Phishing Attacks</h2>
+          <p class="text-sm text-slate-400">How attackers exploit subtle structural tricks and human psychology.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <div class="p-5 rounded-xl bg-cyber-900/80 border border-slate-800 space-y-3">
+            <div class="w-10 h-10 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center border border-rose-500/20">
+              <i data-lucide="alert-octagon" class="w-5 h-5"></i>
+            </div>
+            <h3 class="text-base font-bold text-white">1. Typosquatting & Homoglyphs</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Attackers register domains that look nearly identical to popular brands, replacing letters with numbers (e.g., <code class="text-rose-400">paypa1.com</code>) or using Punycode internationalized characters (<code class="text-rose-400">xn--googl-rsa.com</code>) to mimic legitimate symbols.
+            </p>
+          </div>
+
+          <div class="p-5 rounded-xl bg-cyber-900/80 border border-slate-800 space-y-3">
+            <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20">
+              <i data-lucide="layers" class="w-5 h-5"></i>
+            </div>
+            <h3 class="text-base font-bold text-white">2. Subdomain Masquerading</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              In a URL like <code class="text-amber-400">chase.com.login-verify.xyz</code>, the actual registered domain is <code class="text-white font-bold">login-verify.xyz</code>, not Chase! Attackers prepend brand names as subdomains to fool users glancing quickly.
+            </p>
+          </div>
+
+          <div class="p-5 rounded-xl bg-cyber-900/80 border border-slate-800 space-y-3">
+            <div class="w-10 h-10 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20">
+              <i data-lucide="clock" class="w-5 h-5"></i>
+            </div>
+            <h3 class="text-base font-bold text-white">3. Artificial Urgency & Coercion</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Phishing messages weaponize deadlines ("Suspended in 24 hours", "Immediate wire verification required") to bypass critical thinking and trigger panic reactions.
+            </p>
+          </div>
+
+          <div class="p-5 rounded-xl bg-cyber-900/80 border border-slate-800 space-y-3">
+            <div class="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+              <i data-lucide="shield-check" class="w-5 h-5"></i>
+            </div>
+            <h3 class="text-base font-bold text-white">4. Proactive Defense Strategies</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Always inspect the root domain before entering credentials. Enable hardware Multi-Factor Authentication (FIDO2/WebAuthn), which cryptographically prevents phishing proxies from capturing your login session.
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/80 bg-cyber-900 py-6 mt-12 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div class="flex items-center space-x-2">
+        <span class="font-bold text-slate-300">PhishGuard AI</span>
+        <span>• Machine Learning Threat Intelligence Platform</span>
+      </div>
+      <div class="font-mono text-slate-400">FastAPI • Scikit-Learn • Random Forest Ensemble</div>
+    </div>
+  </footer>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
