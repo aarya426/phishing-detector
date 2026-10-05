@@ -24,8 +24,12 @@ def main():
     # Pre-train or load models
     from app.ml.model import engine
     stats = engine.get_stats()
-    url_acc = stats.get("url_metrics", {}).get("accuracy", 0.0)
-    print(f"URL Random Forest Model loaded (Validation Accuracy: {url_acc * 100:.1f}%)")
+    metrics = stats.get("url_metrics", {})
+    url_acc = metrics.get("accuracy", 0.0)
+    roc_auc = metrics.get("roc_auc", 0.0)
+    version = stats.get("version", "v1.2.0")
+    print(f"URL Calibrated RF Model loaded (Version: {version})")
+    print(f"Evaluation on Unseen Domains -> Accuracy: {url_acc * 100:.1f}%, ROC-AUC: {roc_auc * 100:.1f}%")
     print(f"NLP Message Classifier loaded (Accuracy: {stats.get('text_metrics', {}).get('accuracy', 0.0) * 100:.1f}%)")
     print("-" * 65)
     print("[*] Starting Web Server at: http://127.0.0.1:8000")

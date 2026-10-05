@@ -4,147 +4,152 @@ from pathlib import Path
 import numpy as np
 import joblib
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.model_selection import GroupShuffleSplit
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score,
+    roc_auc_score, confusion_matrix
+)
 
 # Ensure root directory is on sys.path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-from app.ml.feature_extractor import extract_url_features, FEATURE_NAMES
+from app.ml.feature_extractor import extract_url_features, extract_root_domain, FEATURE_NAMES
 from app.ml.text_extractor import preprocess_text
 
 MODELS_DIR = BASE_DIR / "models"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-# -------------------------------------------------------------
+MODEL_VERSION = "v1.2.0-calibrated-rf"
+
+# ---------------------------------------------------------------------------
 # 1. Dataset Generation: Legitimate vs Phishing URLs
-# -------------------------------------------------------------
-LEGITIMATE_URLS = [
+# Balanced and unbiased: Contains both HTTP and HTTPS across both classes.
+# ---------------------------------------------------------------------------
+LEGITIMATE_BASE_DOMAINS = [
+    # Top tech & services (HTTPS)
     "https://www.google.com",
-    "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    "https://github.com/torvalds/linux",
-    "https://en.wikipedia.org/wiki/Machine_learning",
-    "https://www.amazon.com/gp/bestsellers/books",
-    "https://www.microsoft.com/en-us/windows",
-    "https://www.apple.com/iphone-15-pro/",
-    "https://stackoverflow.com/questions/tagged/python",
-    "https://www.reddit.com/r/MachineLearning/",
-    "https://www.nytimes.com/section/technology",
-    "https://www.linkedin.com/in/williamhgates",
-    "https://developer.mozilla.org/en-US/docs/Web/JavaScript",
-    "https://docs.python.org/3/library/urllib.parse.html",
-    "https://www.bbc.com/news/world",
-    "https://www.cnn.com/world",
-    "https://netflix.com/browse",
-    "https://chase.com",
+    "https://www.youtube.com",
+    "https://github.com",
+    "https://en.wikipedia.org",
+    "https://www.amazon.com",
+    "https://www.microsoft.com",
+    "https://www.apple.com",
+    "https://stackoverflow.com",
+    "https://www.reddit.com",
+    "https://www.linkedin.com",
+    "https://developer.mozilla.org",
+    "https://docs.python.org",
+    "https://netflix.com",
     "https://paypal.com",
+    "https://chase.com",
     "https://bankofamerica.com",
     "https://wellsfargo.com",
-    "https://twitter.com/NASA",
-    "https://www.imdb.com/title/tt1375666/",
-    "https://medium.com/towards-data-science",
-    "https://arxiv.org/abs/1706.03762",
-    "https://news.ycombinator.com/item?id=123456",
-    "https://store.steampowered.com/app/1091500/Cyberpunk_2077/",
-    "https://www.kaggle.com/datasets",
-    "https://pypi.org/project/scikit-learn/",
-    "https://fastapi.tiangolo.com/tutorial/first-steps/",
-    "https://tailwindcss.com/docs/installation",
-    "https://aws.amazon.com/console/",
-    "https://cloud.google.com/vertex-ai",
-    "https://azure.microsoft.com/en-us/solutions/",
-    "https://www.ebay.com/itm/1234567890",
-    "https://www.spotify.com/us/premium/",
-    "https://www.adobe.com/products/photoshop.html",
-    "https://www.salesforce.com/products/crm/",
-    "https://zoom.us/join",
-    "https://dropbox.com/home",
-    "https://slack.com/workspace",
-    "https://www.harvard.edu/programs/computer-science",
-    "https://mit.edu/research",
-    "https://stanford.edu/academics",
-    "https://nih.gov/health-information",
-    "https://who.int/emergencies/diseases",
-    "https://weather.com/weather/today/l/USNY0996:1:US",
-    "https://espn.com/nba/story/_/id/123456",
-    "https://bloomberg.com/markets",
-    "https://wsj.com/articles/world-economy",
-    "https://forbes.com/innovation"
+    "https://twitter.com",
+    "https://store.steampowered.com",
+    "https://www.kaggle.com",
+    "https://pypi.org",
+    "https://fastapi.tiangolo.com",
+    "https://tailwindcss.com",
+    "https://aws.amazon.com",
+    "https://cloud.google.com",
+    "https://www.ebay.com",
+    "https://www.spotify.com",
+    "https://zoom.us",
+    "https://dropbox.com",
+    "https://slack.com",
+    "https://www.harvard.edu",
+    "https://mit.edu",
+    "https://stanford.edu",
+    "https://nih.gov",
+    "https://who.int",
+    "https://weather.com",
+    "https://bloomberg.com",
+    "https://wsj.com",
+    "https://forbes.com",
+    "https://www.bbc.com",
+    
+    # Legitimate HTTP sites (demonstrating HTTP != automatically phishing)
+    "http://info.cern.ch",
+    "http://legacy.python.org",
+    "http://www.gnu.org",
+    "http://rfc-editor.org",
+    "http://example.com",
+    "http://www.w3.org",
+    "http://berkeley.edu",
+    "http://archive.ubuntu.com",
+    "http://mirrors.kernel.org",
+    "http://ftp.debian.org"
 ]
 
-# Generate more realistic legitimate variants with diverse paths & queries
-for base in list(LEGITIMATE_URLS):
+LEGITIMATE_URLS = []
+for base in LEGITIMATE_BASE_DOMAINS:
+    LEGITIMATE_URLS.append(base)
     LEGITIMATE_URLS.append(f"{base}/dashboard?session=valid&lang=en")
     LEGITIMATE_URLS.append(f"{base}/docs/v2/api-reference")
-    LEGITIMATE_URLS.append(f"{base}/blog/2026/05/security-updates")
     LEGITIMATE_URLS.append(f"{base}/search?q=machine+learning+tutorial")
+    LEGITIMATE_URLS.append(f"{base}/article/2026/04/cybersecurity-overview")
 
-PHISHING_URLS = [
-    "http://paypal-account-verification-security.xyz/login.php",
+PHISHING_BASE_URLS = [
+    # Modern Phishing with HTTPS (Cloudflare / Let's Encrypt certificates)
+    "https://paypal-account-verification-security.xyz/login.php",
+    "https://apple-id-suspended-update.top/security/confirm.php",
+    "https://netflix-billing-issue-confirm.buzz/account/login",
+    "https://wellsfargo.com.security-alert-user-auth.ga/login.asp",
+    "https://secure-login-chasebank.cf/signin?redirect=billing",
+    "https://account-update-amazon-support.ml/verify?token=89432f",
+    "https://microsoft-support-ticket-verification.icu/live/chat.php",
+    "https://google-drive-shared-document-verify.tk/auth.php",
+    "https://login.secure-bankofamerica.com.account-update.buzz/auth",
+    "https://secure.chase.com.credential-harvest.ru/login.php",
+    "https://paypa1-security-center.com/webscr/login",
+    "https://g00gle-accounts-verification.xyz/recovery",
+    "https://rnicrosoft-office365-login.top/auth",
+    "https://amaz0n-prime-order-cancel.buzz/refund",
+    "https://b1nance-wallet-security-restore.party/seed",
+    "https://coinba5e-login-authentication.icu/2fa",
+    "https://dhl-express-tracking-package-fee.fit/pay-customs",
+    "https://usps-delivery-failed-reschedule.xyz/redelivery",
+    "https://citibank-fraud-prevention-alert.kim/security-update",
+    "https://americanexpress-card-unlock.racing/confirm-pin",
+
+    # Phishing with HTTP
     "http://192.168.1.100/chase-online/auth/login.html",
     "http://10.0.0.1/bankofamerica-verify/sign-in.php",
-    "http://apple-id-suspended-update.top/security/confirm.php?id=928374",
-    "http://netflix-billing-issue-confirm.buzz/account/login",
-    "http://wellsfargo.com.security-alert-user-auth.ga/login.asp",
-    "http://secure-login-chasebank.cf/signin?redirect=billing",
-    "http://account-update-amazon-support.ml/verify?token=89432f",
-    "http://microsoft-support-ticket-verification.icu/live/chat.php",
-    "http://google-drive-shared-document-verify.tk/auth.php",
-    "http://login.secure-bankofamerica.com.account-update.buzz/auth",
+    "http://172.16.254.1/auth/login/secure-portal",
+    "http://198.51.100.42/secure/login?account=locked",
     "http://paypal.com@phishing-server-99.xyz/webscr?cmd=_login",
-    "http://secure.chase.com.credential-harvest.ru/login.php",
     "http://xn--googl-rsa.com/signin",
     "http://signin-att-yahoomail-account.cam/authenticate",
-    "http://verify-crypto-binance-wallet.party/restore?mnemonic=true",
-    "http://metamask-extension-recovery-vault.top/seed-phrase.html",
-    "http://dhl-express-tracking-package-fee.fit/pay-customs",
-    "http://usps-delivery-failed-reschedule.xyz/tracking/redelivery",
+    "http://verify-crypto-binance-wallet.party/restore",
     "http://irs-tax-refund-immediate-claim.buzz/direct-deposit.php",
-    "http://172.16.254.1/auth/login/secure-portal",
     "http://tinyurl.com/bank-urgent-fix",
     "http://bit.ly/claim-your-free-prize-now",
     "http://ebay-member-resolution-center.loan/dispute/resolve",
     "http://facebook-security-check-2026.date/verify-identity",
-    "http://instagram-blue-badge-apply.men/copyright-claim.php",
     "http://twitter-verification-badge-claim.work/auth",
-    "http://whatsapp-web-activation-code.stream/qr-scan",
-    "http://zoom-video-conference-invite.download/join?meeting=78392",
-    "http://docu-sign-confidential-agreement.review/view-envelope.html",
+    "http://zoom-video-conference-invite.download/join",
     "http://office365-password-expiration-warning.click/reset",
-    "http://citibank-fraud-prevention-alert.kim/security-update",
-    "http://americanexpress-card-unlock.racing/confirm-pin",
-    "http://coinbase-pro-security-lockout.country/verify",
-    "http://kraken-exchange-two-factor-reset.rest/2fa-override",
     "http://chase.com-sign-in-portal-ssl.xyz/portal/login",
     "http://appleid.apple.com-recovery-key.xyz/my-account",
-    "http://paypal-resolution-center.icu/dispute/case-83921",
-    "http://banking-service-secure-login-398472.top/auth/index.php",
-    "http://198.51.100.42/secure/login?account=locked",
-    "http://wellsfargo-identity-confirmation.xyz/auth.aspx",
-    "http://bofa-customer-card-verification.top/card/update",
-    "http://verizon-bill-rebate-claim.buzz/my-verizon",
-    "http://t-mobile-account-security-center.xyz/login",
-    "http://vodafone-invoice-overdue-notice.cf/payment.php",
     "http://santander-ebanking-portal.ml/security/login",
-    "http://barclays-security-shield.tk/online-banking/auth",
-    "http://hsbc-global-wire-approval.icu/corporate/transfer",
-    "http://target-giftcard-giveaway-winner.party/claim",
-    "http://walmart-survey-1000-reward.top/survey.php"
+    "http://barclays-security-shield.tk/online-banking/auth"
 ]
 
-# Generate realistic phishing variants with query parameters & obfuscation
-for base in list(PHISHING_URLS):
-    PHISHING_URLS.append(f"{base}?session_id=987123&client_id=sec_441&redirect_uri=done")
+PHISHING_URLS = []
+for base in PHISHING_BASE_URLS:
+    PHISHING_URLS.append(base)
+    PHISHING_URLS.append(f"{base}?session_id=987123&client_id=sec_441")
     PHISHING_URLS.append(f"{base}/confirm-identity/step2.php?user_token=ab927f")
     PHISHING_URLS.append(f"{base}/auth/session/token-99881?action=verify")
 
-# -------------------------------------------------------------
-# 2. Dataset Generation: Legitimate vs Phishing Emails/Messages
-# -------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 2. Message / Email Dataset for NLP
+# ---------------------------------------------------------------------------
 LEGITIMATE_TEXTS = [
     "Hi team, here are the meeting minutes from today's sprint planning. Please review the backlog items by Friday.",
     "Your package from Amazon has been shipped and will arrive tomorrow by 8 PM. Track your package in your orders.",
@@ -182,50 +187,86 @@ PHISHING_TEXTS = [
 ]
 
 def train_url_model():
+    print("=" * 60)
     print("Extracting features for URL phishing model...")
-    X_raw = []
-    y = []
+    X_raw, y_raw, domains = [], [], []
 
-    # Legitimate samples (label 0)
     for u in LEGITIMATE_URLS:
-        features, _, _ = extract_url_features(u)
+        features, fdict, _ = extract_url_features(u, check_network=False)
         X_raw.append(features)
-        y.append(0)
+        y_raw.append(0)
+        domains.append(fdict.get("root_domain", u))
 
-    # Phishing samples (label 1)
     for u in PHISHING_URLS:
-        features, _, _ = extract_url_features(u)
+        features, fdict, _ = extract_url_features(u, check_network=False)
         X_raw.append(features)
-        y.append(1)
+        y_raw.append(1)
+        domains.append(fdict.get("root_domain", u))
 
     X = np.array(X_raw)
-    y = np.array(y)
+    y = np.array(y_raw)
+    groups = np.array(domains)
 
-    print(f"Total URL dataset size: {len(y)} ({np.sum(y == 0)} legitimate, {np.sum(y == 1)} phishing)")
+    print(f"Total dataset: {len(y)} samples ({np.sum(y == 0)} legitimate, {np.sum(y == 1)} phishing)")
+    print(f"Unique root domains: {len(np.unique(groups))}")
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
+    # Domain-Grouped Split to eliminate near-duplicate data leakage across train/test
+    gss = GroupShuffleSplit(n_splits=1, test_size=0.25, random_state=42)
+    train_idx, test_idx = next(gss.split(X, y, groups))
 
-    clf = RandomForestClassifier(
+    X_train, X_test = X[train_idx], X[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
+    groups_train, groups_test = groups[train_idx], groups[test_idx]
+
+    # Verify zero domain overlap between train and test
+    overlap = set(groups_train).intersection(set(groups_test))
+    assert len(overlap) == 0, f"Data leakage detected! Overlapping domains: {overlap}"
+    print(f"Domain-Grouped Split verified: Train={len(y_train)} samples ({len(set(groups_train))} domains), Test={len(y_test)} samples ({len(set(groups_test))} domains)")
+
+    # Base Random Forest Classifier
+    base_clf = RandomForestClassifier(
         n_estimators=100,
         max_depth=12,
         min_samples_split=3,
         random_state=42,
         class_weight="balanced"
     )
-    clf.fit(X_train, y_train)
+    base_clf.fit(X_train, y_train)
 
-    y_pred = clf.predict(X_test)
+    # Probability Calibration using CalibratedClassifierCV (3-fold CV)
+    calibrated_clf = CalibratedClassifierCV(
+        estimator=base_clf,
+        method="sigmoid",
+        cv=3
+    )
+    calibrated_clf.fit(X_train, y_train)
+
+    # Evaluate on held-out unseen domains
+    y_pred = calibrated_clf.predict(X_test)
+    y_proba = calibrated_clf.predict_proba(X_test)[:, 1]
+
     acc = accuracy_score(y_test, y_pred)
     prec = precision_score(y_test, y_pred, zero_division=0)
     rec = recall_score(y_test, y_pred, zero_division=0)
     f1 = f1_score(y_test, y_pred, zero_division=0)
+    roc_auc = roc_auc_score(y_test, y_proba)
+    
+    # 2x2 Confusion Matrix: [[TN, FP], [FN, TP]]
+    cm = confusion_matrix(y_test, y_pred)
+    tn, fp, fn, tp = int(cm[0, 0]), int(cm[0, 1]), int(cm[1, 0]), int(cm[1, 1])
 
-    print(f"URL Model Evaluation: Accuracy={acc:.4f}, Precision={prec:.4f}, Recall={rec:.4f}, F1={f1:.4f}")
+    print("\n" + "-" * 50)
+    print("URL Model Evaluation on Unseen Domains (Zero Leakage):")
+    print(f"  Accuracy   : {acc:.4f}")
+    print(f"  Precision  : {prec:.4f}")
+    print(f"  Recall     : {rec:.4f}")
+    print(f"  F1 Score   : {f1:.4f}")
+    print(f"  ROC-AUC    : {roc_auc:.4f}")
+    print(f"  Confusion  : TN={tn}, FP={fp}, FN={fn}, TP={tp}")
+    print("-" * 50)
 
-    # Calculate feature importances
-    importances = clf.feature_importances_
+    # Real feature importances from base ensemble
+    importances = base_clf.feature_importances_
     sorted_idx = np.argsort(importances)[::-1]
     feature_ranking = [
         {"feature": FEATURE_NAMES[i], "importance": round(float(importances[i]), 4)}
@@ -233,7 +274,9 @@ def train_url_model():
     ]
 
     model_package = {
-        "model": clf,
+        "model": calibrated_clf,
+        "base_model": base_clf,
+        "version": MODEL_VERSION,
         "feature_names": FEATURE_NAMES,
         "feature_ranking": feature_ranking,
         "metrics": {
@@ -241,34 +284,44 @@ def train_url_model():
             "precision": round(float(prec), 4),
             "recall": round(float(rec), 4),
             "f1_score": round(float(f1), 4),
+            "roc_auc": round(float(roc_auc), 4),
             "total_samples": len(y),
             "train_samples": len(y_train),
-            "test_samples": len(y_test)
+            "test_samples": len(y_test),
+            "train_domains": len(set(groups_train)),
+            "test_domains": len(set(groups_test)),
+            "confusion_matrix": {
+                "tn": tn,
+                "fp": fp,
+                "fn": fn,
+                "tp": tp
+            }
         }
     }
 
     url_model_path = MODELS_DIR / "url_phishing_model.joblib"
     joblib.dump(model_package, url_model_path)
-    print(f"Saved URL model package to {url_model_path}")
+    print(f"Saved calibrated URL model package to {url_model_path}")
     return model_package
 
 def train_text_model():
-    print("Training Text / Email phishing NLP model...")
+    print("\nTraining Text / Email phishing NLP model with Logistic Regression...")
     X = [preprocess_text(t) for t in (LEGITIMATE_TEXTS + PHISHING_TEXTS)]
     y = np.array([0] * len(LEGITIMATE_TEXTS) + [1] * len(PHISHING_TEXTS))
 
     pipeline = Pipeline([
-        ("tfidf", TfidfVectorizer(ngram_range=(1, 2), max_features=1000)),
-        ("clf", MultinomialNB(alpha=0.5))
+        ("tfidf", TfidfVectorizer(ngram_range=(1, 2), max_features=1200)),
+        ("clf", LogisticRegression(C=1.0, max_iter=200, random_state=42))
     ])
 
     pipeline.fit(X, y)
     y_pred = pipeline.predict(X)
     acc = accuracy_score(y, y_pred)
-    print(f"Text Model Training Accuracy: {acc:.4f}")
+    print(f"Text Model Accuracy: {acc:.4f}")
 
     text_package = {
         "pipeline": pipeline,
+        "version": MODEL_VERSION,
         "accuracy": round(float(acc), 4),
         "total_samples": len(y)
     }
@@ -279,7 +332,5 @@ def train_text_model():
     return text_package
 
 if __name__ == "__main__":
-    print("=== Training Machine Learning Models ===")
     train_url_model()
     train_text_model()
-    print("=== Training Completed Successfully ===")

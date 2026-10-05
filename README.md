@@ -106,6 +106,3 @@ pytest tests/ -v
 - **Testing**: Pytest, HTTPX
 
 ---
-
-## 📄 License
-This project is licensed under the MIT License.
